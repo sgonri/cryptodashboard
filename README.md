@@ -1,1 +1,5 @@
-This is a template readme file to enforce main default branch. Edit this file as you see fit.
+# COMP.SE.110 — Group assignment repository
+
+This repository is meant for storing your work regarding the group assignment in the Software Design course.
+
+Modify this file as appropriate for your group assignment.
