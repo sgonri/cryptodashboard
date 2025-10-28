@@ -9,14 +9,18 @@ public class Crypto {
     private final double price;
     private final double changePercent;
     private final String marketCap;
+    private final String volume;
+    private final String circulatingSupply;
 
-    public Crypto(String id, String name, String symbol, double price, double changePercent, String marketCap) {
+    public Crypto(String id, String name, String symbol, double price, double changePercent, String marketCap, String volume, String circulatingSupply) {
         this.id = id;
         this.name = name;
         this.symbol = symbol;
         this.price = price;
         this.changePercent = changePercent;
         this.marketCap = marketCap;
+        this.volume = volume;
+        this.circulatingSupply = circulatingSupply;
     }
 
     public String getId() { return id; }
@@ -25,13 +29,15 @@ public class Crypto {
     public double getPrice() { return price; }
     public double getChangePercent() { return changePercent; }
     public String getMarketCap() { return marketCap; }
+    public String getVolume() { return volume; }
+    public String getCirculatingSupply() { return circulatingSupply; }
 
     public String getPriceFormatted() {
         return String.format("$%,.2f", price);
     }
 
     public String getChangeFormatted() {
-        return String.format("%s%.2f%%", changePercent >= 0 ? "+" : "", changePercent);
+        return String.format("%s%.2f%%", changePercent >= 0 ? "▲" : "▼", Math.abs(changePercent));
     }
 
     @Override
