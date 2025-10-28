@@ -1,0 +1,320 @@
+.root {
+    -fx-background-color: #121212;
+    background-color: #121212;
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+}
+
+.section-header {
+    -fx-font-size: 24px;
+    font-size: 24px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-fill: #FFFFFF;
+    fill: #FFFFFF;
+}
+
+.crypto-scroll-pane, .news-scroll-pane {
+    -fx-background: #121212;
+    background: #121212;
+    -fx-border-color: #2D2D2D;
+    border-color: #2D2D2D;
+    -fx-border-width: 1px;
+    border-width: 1px;
+}
+
+.scroll-pane > .viewport {
+    -fx-background-color: #121212;
+    background-color: #121212;
+}
+
+.scroll-bar:vertical {
+    -fx-background-color: #1E1E1E;
+    background-color: #1E1E1E;
+}
+
+.scroll-bar:vertical .thumb {
+    -fx-background-color: #3D3D3D;
+    background-color: #3D3D3D;
+}
+
+.crypto-card, .news-card {
+    -fx-background-color: #1E1E1E;
+    background-color: #1E1E1E;
+    -fx-background-radius: 8px;
+    border-radius: 8px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 10, 0, 0, 0);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.crypto-card-selected {
+    -fx-background-color: linear-gradient(to bottom right, #222428, #1A1A1D);
+    background-color: linear-gradient(to bottom right, #222428, #1A1A1D);
+    -fx-border-color: rgba(76,175,80,0.25);
+    border-color: rgba(76,175,80,0.25);
+    -fx-effect: dropshadow(gaussian, rgba(76,175,80,0.08), 20, 0, 0, 8);
+}
+
+.rank-badge {
+    -fx-background-color: rgba(255,255,255,0.03);
+    background-color: rgba(255,255,255,0.03);
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-padding: 6px 8px;
+    padding: 6px 8px;
+    -fx-background-radius: 6px;
+    border-radius: 6px;
+    -fx-min-width: 28px;
+    min-width: 28px;
+    -fx-alignment: center;
+}
+
+.crypto-card-hover, .news-card-hover {
+    -fx-background-color: #2D2D2D;
+    background-color: #2D2D2D;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.4), 12, 0, 0, 0);
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+}
+
+.crypto-name {
+    -fx-font-size: 18px;
+    font-size: 18px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+}
+
+.positive-change {
+    -fx-text-fill: #4CAF50;
+    color: #4CAF50;
+}
+
+.negative-change {
+    -fx-text-fill: #F44336;
+    color: #F44336;
+}
+
+.market-cap {
+    -fx-text-fill: #B0B0B0;
+    color: #B0B0B0;
+}
+
+.news-title {
+    -fx-font-size: 16px;
+    font-size: 16px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+}
+
+.news-source {
+    -fx-text-fill: #4CAF50;
+    color: #4CAF50;
+}
+
+.news-time {
+    -fx-text-fill: #B0B0B0;
+    color: #B0B0B0;
+    -fx-font-size: 12px;
+    font-size: 12px;
+}
+
+/* Chart styling */
+.chart {
+    -fx-background-color: transparent;
+    background-color: transparent;
+    -fx-padding: 0;
+    padding: 0;
+}
+
+.chart-plot-background {
+    -fx-background-color: transparent;
+    background-color: transparent;
+}
+
+.chart-vertical-grid-lines {
+    -fx-stroke: transparent;
+    stroke: transparent;
+}
+
+.chart-horizontal-grid-lines {
+    -fx-stroke: transparent;
+    stroke: transparent;
+}
+
+.axis {
+    -fx-tick-label-fill: #FFFFFF;
+    fill: #FFFFFF;
+}
+
+.chart-series-line {
+    -fx-stroke-width: 2px;
+    stroke-width: 2px;
+}
+
+.default-color0.chart-series-line {
+    -fx-stroke: #4CAF50;
+    stroke: #4CAF50;
+}
+
+.mini-chart {
+    -fx-background-color: transparent;
+    background-color: transparent;
+    -fx-padding: 0;
+    padding: 0;
+}
+
+.mini-chart .chart-plot-background {
+    -fx-background-color: transparent;
+    background-color: transparent;
+}
+
+/* Detail view styling */
+.back-button {
+    -fx-background-color: #2D2D2D;
+    background-color: #2D2D2D;
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+    -fx-font-size: 14px;
+    font-size: 14px;
+    -fx-padding: 8 16;
+    padding: 8px 16px;
+    -fx-background-radius: 4;
+    border-radius: 4px;
+}
+
+.back-button:hover {
+    -fx-background-color: #3D3D3D;
+    background-color: #3D3D3D;
+}
+
+.detail-header {
+    -fx-font-size: 28px;
+    font-size: 28px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+}
+
+.detail-price {
+    -fx-font-size: 36px;
+    font-size: 36px;
+    -fx-font-weight: bold;
+    font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+}
+
+.time-interval-button {
+    -fx-background-color: #2D2D2D;
+    background-color: #2D2D2D;
+    -fx-text-fill: #FFFFFF;
+    color: #FFFFFF;
+    -fx-padding: 8 16;
+    padding: 8px 16px;
+    -fx-background-radius: 4;
+    border-radius: 4px;
+}
+
+.time-interval-button:hover {
+    -fx-background-color: #3D3D3D;
+    background-color: #3D3D3D;
+}
+
+.crypto-chart {
+    -fx-background-color: transparent;
+    background-color: transparent;
+    -fx-padding: 10;
+    padding: 10px;
+}
+
+/* Layout and detail pane improvements */
+.detail-pane {
+    -fx-background-color: transparent;
+    background-color: transparent;
+}
+
+.back-button {
+    -fx-min-width: 36px;
+    min-width: 36px;
+    -fx-min-height: 36px;
+    min-height: 36px;
+    -fx-background-radius: 8px;
+    border-radius: 8px;
+}
+
+/* Improve general typography */
+.section-header {
+    -fx-font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+.crypto-card, .news-card {
+    -fx-padding: 14px;
+    padding: 14px;
+}
+
+/* Make charts and cards feel lighter */
+.crypto-card {
+    -fx-border-color: rgba(255,255,255,0.03);
+    border-color: rgba(255,255,255,0.03);
+    -fx-border-width: 1px;
+    border-width: 1px;
+}
+
+/* Modal overlay styles */
+.modal-backdrop {
+    -fx-background-color: rgba(0,0,0,0.6);
+    background-color: rgba(0,0,0,0.6);
+}
+
+.modal-card {
+    -fx-background-color: #141414;
+    background-color: #141414;
+    -fx-background-radius: 12px;
+    border-radius: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 20, 0, 0, 6);
+    -fx-padding: 12px;
+    padding: 12px;
+}
+
+
+/* Scrollbar styling */
+.scroll-bar:vertical,
+.scroll-bar:horizontal {
+    -fx-background-color: #1E1E1E;
+    background-color: #1E1E1E;
+}
+
+.scroll-bar:vertical .thumb,
+.scroll-bar:horizontal .thumb {
+    -fx-background-color: #3D3D3D;
+    background-color: #3D3D3D;
+    -fx-background-radius: 5em;
+    border-radius: 5em;
+}
+
+.scroll-bar:vertical .track,
+.scroll-bar:horizontal .track {
+    -fx-background-color: #1E1E1E;
+    background-color: #1E1E1E;
+    -fx-border-color: transparent;
+    border-color: transparent;
+    -fx-background-radius: 0em;
+    border-radius: 0;
+}
+
+.scroll-bar:vertical .increment-button,
+.scroll-bar:vertical .decrement-button,
+.scroll-bar:horizontal .increment-button,
+.scroll-bar:horizontal .decrement-button {
+    -fx-background-color: transparent;
+    background-color: transparent;
+    -fx-border-color: transparent;
+    border-color: transparent;
+}
