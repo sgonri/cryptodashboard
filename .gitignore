@@ -40,6 +40,10 @@ Icon?
 ehthumbs.db
 Thumbs.db
 
+# Application Secrets
+src/main/resources/application.properties
+.env
+
 # Java Build Artifacts
 *.class
 *.jar

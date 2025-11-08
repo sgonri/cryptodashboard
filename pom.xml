@@ -22,6 +22,12 @@
 
   <dependencyManagement>
     <dependencies>
+    <!-- JSON parsing for CoinGecko HTTP responses -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.15.2</version>
+    </dependency>
       <dependency>
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
@@ -58,6 +64,12 @@
         <groupId>org.openjfx</groupId>
         <artifactId>javafx-base</artifactId>
         <version>${javafx.version}</version>
+    </dependency>
+    <!-- JSON parsing for CoinGecko HTTP responses -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.15.2</version>
     </dependency>
     <dependency>
         <groupId>org.junit.jupiter</groupId>
