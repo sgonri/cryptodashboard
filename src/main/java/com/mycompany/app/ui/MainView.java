@@ -2,7 +2,6 @@ package com.mycompany.app.ui;
 
 import com.mycompany.app.models.Crypto;
 import com.mycompany.app.services.CryptoService;
-import com.mycompany.app.services.MockCryptoService;
 import com.mycompany.app.services.NewsService;
 import com.mycompany.app.services.MockNewsService;
 import javafx.geometry.Insets;
@@ -23,7 +22,7 @@ public class MainView extends BorderPane {
     private HBox selectedSidebarItem = null;
 
     public MainView() {
-        this.cryptoService = new MockCryptoService();
+        this.cryptoService = new CryptoService();
         this.newsService = new MockNewsService();
         this.detailView = new CryptoDetailView();
         this.newsView = new NewsView(this::updateNewsFeed);
