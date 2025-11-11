@@ -14,7 +14,9 @@ public class App extends Application {
     public void start(Stage primaryStage) {
     // Create the main layout inside a StackPane so we can show in-window modals
     javafx.scene.layout.StackPane root = new javafx.scene.layout.StackPane();
-    root.getChildren().add(new MainView());
+    MainView mainView = new MainView();
+    mainView.setHostServices(getHostServices());
+    root.getChildren().add(mainView);
 
     // Create the scene with dark theme
     Scene scene = new Scene(root, 1200, 800);

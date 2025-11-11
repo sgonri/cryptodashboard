@@ -2,8 +2,8 @@ package com.mycompany.app.ui;
 
 import com.mycompany.app.models.Crypto;
 import com.mycompany.app.services.CryptoService;
-import com.mycompany.app.services.NewsService;
-import com.mycompany.app.services.MockNewsService;
+import com.mycompany.app.services.SerpAPINewsService;
+import javafx.application.HostServices;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -19,16 +19,17 @@ import java.net.URISyntaxException;
 
 public class MainView extends BorderPane {
     private final CryptoService cryptoService;
-    private final NewsService newsService;
+    private final SerpAPINewsService newsService;
     private final CryptoDetailView detailView;
     private final NewsView newsView;
     private final VBox cryptoListBox = new VBox(8);
     private Crypto selectedCrypto = null;
     private HBox selectedSidebarItem = null;
+    private HostServices hostServices;
 
     public MainView() {
         this.cryptoService = new CryptoService();
-        this.newsService = new MockNewsService();
+        this.newsService = new SerpAPINewsService();
         this.detailView = new CryptoDetailView();
         this.newsView = new NewsView(this::updateNewsFeed);
 
@@ -38,6 +39,15 @@ public class MainView extends BorderPane {
 
         getStyleClass().add("main-view");
         loadData();
+    }
+
+    /**
+     * Set HostServices for opening URLs in browser
+     * This should be called from the Application class
+     */
+    public void setHostServices(HostServices hostServices) {
+        this.hostServices = hostServices;
+        this.newsView.setHostServices(hostServices);
     }
 
     private void loadData() {
