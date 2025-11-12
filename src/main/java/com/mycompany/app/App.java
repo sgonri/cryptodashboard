@@ -6,12 +6,13 @@ import javafx.stage.Stage;
 import com.mycompany.app.views.MainView;
 import com.mycompany.app.views.CryptoDetailView;
 import com.mycompany.app.views.NewsView;
+import com.mycompany.app.views.CryptoListView;
 import com.mycompany.app.controllers.MainController;
 import com.mycompany.app.controllers.CryptoDetailController;
 import com.mycompany.app.controllers.NewsController;
+import com.mycompany.app.controllers.CryptoListController;
 import com.mycompany.app.services.CryptoService;
 import com.mycompany.app.services.SerpAPINewsService;
-import java.util.List;
 import com.mycompany.app.models.Crypto;
 
 /**
@@ -25,34 +26,42 @@ public class App extends Application {
         SerpAPINewsService newsService = new SerpAPINewsService();
         
         // Initialize controllers
+        CryptoListController cryptoListController = new CryptoListController(cryptoService);
         CryptoDetailController detailController = new CryptoDetailController(cryptoService);
         NewsController newsController = new NewsController(newsService);
-        MainController mainController = new MainController(cryptoService, detailController, newsController);
         
+        // MainController orchestrates everything
+        MainController mainController = new MainController(
+            cryptoListController,
+            detailController,
+            newsController
+        );
+
         // Initialize views
         CryptoDetailView detailView = new CryptoDetailView();
         NewsView newsView = new NewsView(mainController::handleNewsToggleChange);
-        MainView mainView = new MainView(detailView, newsView);
-        
+        CryptoListView cryptoListView = new CryptoListView();
+
+        MainView mainView = new MainView(cryptoListView, detailView, newsView);
+
         // Wire controllers to views
+        cryptoListController.setView(cryptoListView);
         detailController.setView(detailView);
         newsController.setView(newsView);
-        
-        // Set up view callbacks
-        mainView.setOnCryptoSelected(mainController::selectCrypto);
+
+        // Set up detail view interval callback
         detailView.setOnIntervalSelected(interval -> {
             Crypto current = mainController.getSelectedCrypto();
             if (current != null) {
                 detailController.selectTimeInterval(interval);
             }
         });
-        
+
         // Set host services for opening URLs
         mainView.setHostServices(getHostServices());
-        
-        // Load initial data
-        List<Crypto> cryptos = mainController.loadTopCryptos();
-        mainView.displayCryptos(cryptos);
+
+        // Load initial data - MainController handles this now
+        mainController.loadInitialData();
         
         // Create the main layout
         javafx.scene.layout.StackPane root = new javafx.scene.layout.StackPane();

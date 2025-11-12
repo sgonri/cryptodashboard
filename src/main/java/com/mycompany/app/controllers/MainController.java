@@ -1,32 +1,32 @@
 package com.mycompany.app.controllers;
-
 import com.mycompany.app.models.Crypto;
-import com.mycompany.app.services.CryptoService;
-import java.util.List;
 
 /**
  * Controller for the main view
- * Manages crypto list and coordinates between detail and news controllers
+ * Orchestrates app coordination and wires all the controllers together
  */
 public class MainController {
-    private final CryptoService cryptoService;
+    private final CryptoListController listController;
     private final CryptoDetailController detailController;
     private final NewsController newsController;
     private Crypto selectedCrypto;
 
-    public MainController(CryptoService cryptoService, 
+    public MainController(CryptoListController listController,
                          CryptoDetailController detailController,
                          NewsController newsController) {
-        this.cryptoService = cryptoService;
+        this.listController = listController;
         this.detailController = detailController;
         this.newsController = newsController;
+        
+        // Wire up the crypto selection callback
+        this.listController.setOnCryptoSelected(this::selectCrypto);
     }
 
     /**
-     * Load the top cryptocurrencies
+     * Load initial data (top cryptocurrencies)
      */
-    public List<Crypto> loadTopCryptos() {
-        return cryptoService.getTopCryptos();
+    public void loadInitialData() {
+        listController.loadTopCryptos();
     }
 
     /**
@@ -34,10 +34,10 @@ public class MainController {
      */
     public void selectCrypto(Crypto crypto) {
         this.selectedCrypto = crypto;
-        
+
         // Update detail view with selected crypto
         detailController.showCrypto(crypto);
-        
+
         // Update news feed for selected crypto
         newsController.loadNewsForCrypto(crypto.getId());
     }
