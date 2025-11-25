@@ -19,23 +19,78 @@ import com.mycompany.app.models.ChartPoint;
 import com.mycompany.app.models.Crypto;
 import com.mycompany.app.models.HistoricalData;
 
-public class CryptoService {
+public class CryptoService implements ICryptoService {
     private static final String DEFAULT_API_URL = "https://api.coingecko.com/api/v3";
     private static final int TOP_N = 5;
-    private static final String path = "/application.properties";
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private static final String PROPERTIES_PATH = "/application.properties";
+    private final HttpClient httpClient;
     private final ObjectMapper mapper = new ObjectMapper();
-    private final Properties props = loadProperties();
+    private final Properties props;
     private final CryptoCache cache;
+    
+    // Configurable retry delays for testability (in milliseconds)
+    private int[] retryDelays = { 10000, 20000, 30000, 30000 };
+    private int delayBetweenCalls = 5000;
 
     public CryptoService() {
-        this.cache = new CryptoCache();
+        this(HttpClient.newHttpClient(), new CryptoCache(), loadDefaultProperties());
     }
 
     public CryptoService(CryptoCache cache) {
-        this.cache = cache != null ? cache : new CryptoCache();
+        this(HttpClient.newHttpClient(), cache, loadDefaultProperties());
     }
 
+    public CryptoService(HttpClient httpClient, CryptoCache cache) {
+        this(httpClient, cache, loadDefaultProperties());
+    }
+    
+    /**
+     * Full constructor for maximum testability
+     * @param httpClient HTTP client for API calls (null uses default)
+     * @param cache Cache instance (null creates new)
+     * @param props Properties for configuration (null loads defaults)
+     */
+    public CryptoService(HttpClient httpClient, CryptoCache cache, Properties props) {
+        if (httpClient == null) {
+            throw new IllegalArgumentException("httpClient cannot be null");
+        }
+        if (cache == null) {
+            throw new IllegalArgumentException("cache cannot be null");
+        }
+        this.httpClient = httpClient;
+        this.cache = cache;
+        this.props = props != null ? props : loadDefaultProperties();
+    }
+    
+    /**
+     * Set retry delays for testing (to avoid long waits in tests)
+     */
+    void setRetryDelays(int[] delays) {
+        if (delays != null && delays.length > 0) {
+            this.retryDelays = delays;
+        }
+    }
+    
+    /**
+     * Set delay between API calls for testing
+     */
+    void setDelayBetweenCalls(int delay) {
+        this.delayBetweenCalls = Math.max(0, delay);
+    }
+    
+    private static Properties loadDefaultProperties() {
+        Properties p = new Properties();
+        try (InputStream is = CryptoService.class.getResourceAsStream(PROPERTIES_PATH)) {
+            if (is != null) {
+                p.load(is);
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to load properties: " + e.getMessage());
+        }
+        return p;
+    }
+
+    @Override
     public List<Crypto> getTopCryptos() {
         // Check cache first (fast path)
         if (cache.hasTopCryptos()) {
@@ -66,9 +121,7 @@ public class CryptoService {
 
     private List<Crypto> fetchTopCryptosFromAPI() {
         String baseUrl = props.getProperty("coingecko.api.url", DEFAULT_API_URL);
-        int maxRetries = 5; // Initial attempt + 4 retries
-        // Retry delays: 10s, 20s, 30s, 30s (exponential backoff, then constant)
-        int[] retryDelays = { 10000, 20000, 30000, 30000 };
+        int maxRetries = retryDelays.length + 1; // Initial attempt + retries
 
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
@@ -171,6 +224,7 @@ public class CryptoService {
      * Check if historical data is available in cache for a specific crypto and
      * interval
      */
+    @Override
     public boolean hasHistoricalData(String id, String days) {
         if (id == null || id.isBlank() || days == null || days.isBlank()) {
             return false;
@@ -184,6 +238,7 @@ public class CryptoService {
      * Checks cache first before making API call.
      * Implements lazy loading: only fetches from API if not in cache.
      */
+    @Override
     public HistoricalData getHistoricalDataForCrypto(String id, String days) {
         if (id == null || id.isBlank())
             return new HistoricalData(null);
@@ -213,9 +268,7 @@ public class CryptoService {
 
     private HistoricalData fetchHistoricalDataFromAPI(String id, String days) {
         String baseUrl = props.getProperty("coingecko.api.url", DEFAULT_API_URL);
-        int maxRetries = 5; // Initial attempt + 4 retries
-        // Retry delays: 10s, 20s, 30s, 30s (exponential backoff, then constant)
-        int[] retryDelays = { 10000, 20000, 30000, 30000 }; // 10s, 20s, 30s, 30s
+        int maxRetries = retryDelays.length + 1; // Initial attempt + retries
 
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
@@ -287,22 +340,13 @@ public class CryptoService {
         return new HistoricalData(null);
     }
 
-    /**
-     * Callback interface for notifying when a crypto's data is loaded
-     */
-    public interface DataLoadedCallback {
-        void onDataLoaded(String cryptoId, boolean success);
-
-        void onIntervalDataLoaded(String cryptoId, String interval, boolean success);
-    }
-
-    private DataLoadedCallback dataLoadedCallback;
+    private ICryptoService.DataLoadedCallback dataLoadedCallback;
 
     // Track failed data loads for retry
-    private final java.util.List<FailedDataLoad> failedLoads = new java.util.ArrayList<>();
+    private final java.util.List<FailedDataLoad> failedLoads = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
     // Track interval loading progress: map of interval -> count of loaded cryptos
-    private final java.util.Map<String, Integer> intervalLoadCounts = new java.util.HashMap<>();
+    private final java.util.Map<String, Integer> intervalLoadCounts = new java.util.concurrent.ConcurrentHashMap<>();
     private int totalCryptoCount = 0;
 
     private static class FailedDataLoad {
@@ -317,24 +361,21 @@ public class CryptoService {
         }
     }
 
-    /**
-     * Set callback to be notified when crypto data is loaded
-     */
-    public void setDataLoadedCallback(DataLoadedCallback callback) {
+    @Override
+    public void setDataLoadedCallback(ICryptoService.DataLoadedCallback callback) {
         this.dataLoadedCallback = callback;
     }
 
     /**
      * Retry loading failed data
      */
-    public void retryFailedLoads() {
+    private void retryFailedLoads() {
         if (failedLoads.isEmpty()) {
             System.out.println("No failed loads to retry.");
             return;
         }
 
         System.out.println("Retrying " + failedLoads.size() + " failed data loads...");
-        int delayBetweenCalls = 5000; // 5 seconds
 
         java.util.List<FailedDataLoad> toRetry = new java.util.ArrayList<>(failedLoads);
         failedLoads.clear();
@@ -360,7 +401,6 @@ public class CryptoService {
 
                 // Notify callback only if all cryptos have loaded this interval
                 if (dataLoadedCallback != null && success) {
-                    String interval = convertDaysToInterval(failed.days);
                     int loadedCount = intervalLoadCounts.getOrDefault(failed.intervalName, 0);
                     // Enable interval button only when all cryptos have loaded this interval
                     if (loadedCount == totalCryptoCount) {
@@ -388,17 +428,6 @@ public class CryptoService {
         System.out.println("Retry complete. " + failedLoads.size() + " loads still failed.");
     }
 
-    private String convertDaysToInterval(String days) {
-        return switch (days) {
-            case "1" -> "1D";
-            case "7" -> "1W";
-            case "30" -> "1M";
-            case "90" -> "3M";
-            case "365" -> "1Y";
-            default -> "1D";
-        };
-    }
-
     /**
      * Preload cryptocurrency data at startup
      * Loads data in phases: first all 1D data, then longer intervals
@@ -407,6 +436,7 @@ public class CryptoService {
      * CoinGecko free API limit: 5-15 calls per minute
      * Strategy: 5 second delay = 12 calls/min (safe margin)
      */
+    @Override
     public void preloadAllData() {
         System.out.println("Preloading cryptocurrency data...");
 
@@ -427,9 +457,8 @@ public class CryptoService {
         String[] intervals = { "1", "7", "30", "90", "365" }; // 1D, 1W, 1M, 3M, 1Y
         String[] intervalNames = { "1D", "1W", "1M", "3M", "1Y" };
 
-        // Delay between API calls: 5 seconds = 12 calls/min (safe margin under 15
-        // calls/min limit)
-        int delayBetweenCalls = 5000; // 5 seconds
+        // Delay between API calls: configurable, default 5 seconds = 12 calls/min
+        // (safe margin under 15 calls/min limit)
 
         // Phase 1: Load 1D data for all cryptos first
         System.out.println("Phase 1: Loading 1D data for all cryptos...");
@@ -489,11 +518,9 @@ public class CryptoService {
                 System.out.println("Loading " + intervalName + " data for " + crypto.getName() + "...");
                 try {
                     HistoricalData data = fetchHistoricalDataFromAPI(crypto.getId(), days);
-                    boolean success = false;
                     if (data != null && data.getPoints() != null && !data.getPoints().isEmpty()) {
                         cache.putHistoricalData(crypto.getId(), days, data);
                         System.out.println("✓ Successfully loaded " + intervalName + " data for " + crypto.getName());
-                        success = true;
                         // Increment load count for this interval
                         intervalLoadCounts.put(intervalName, intervalLoadCounts.get(intervalName) + 1);
                     } else {
@@ -541,19 +568,13 @@ public class CryptoService {
             retryFailedLoads();
         }
 
-        // Notify that preloading is complete
-        // Refresh button should be visible when all data is loaded (no failed loads)
-        if (dataLoadedCallback != null && failedLoads.isEmpty()) {
-            // Signal that all data is loaded - refresh button can be shown
-            javafx.application.Platform.runLater(() -> {
-                // This will be handled by the callback in App.java
-            });
-        }
+        System.out.println("Preloading complete. Failed loads: " + failedLoads.size());
     }
 
     /**
      * Get count of failed data loads
      */
+    @Override
     public int getFailedLoadsCount() {
         return failedLoads.size();
     }
@@ -561,22 +582,11 @@ public class CryptoService {
     /**
      * Clear cache to allow refreshing all data
      */
+    @Override
     public void clearCache() {
         cache.clear();
         failedLoads.clear();
-    }
-
-    private Properties loadProperties() {
-        Properties p = new Properties();
-
-        try (InputStream is = getClass().getResourceAsStream(path)) {
-            if (is != null) {
-                p.load(is);
-            }
-        } catch (IOException e) {
-            System.err.println("Failed to load properties from " + path + ": " + e.getMessage());
-        }
-        return p;
+        intervalLoadCounts.clear();
     }
 
     /**

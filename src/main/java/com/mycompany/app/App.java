@@ -64,7 +64,7 @@ public class App extends Application {
         mainController.loadInitialData();
 
         // Set up callback to enable crypto buttons and interval buttons when their data is loaded
-        cryptoService.setDataLoadedCallback(new com.mycompany.app.services.CryptoService.DataLoadedCallback() {
+        cryptoService.setDataLoadedCallback(new com.mycompany.app.services.ICryptoService.DataLoadedCallback() {
             @Override
             public void onDataLoaded(String cryptoId, boolean success) {
                 javafx.application.Platform.runLater(() -> {

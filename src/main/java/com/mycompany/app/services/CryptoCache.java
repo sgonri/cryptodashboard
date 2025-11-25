@@ -9,9 +9,11 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Cache for cryptocurrency data to avoid excessive API calls
  * Stores top cryptos list and historical data for each crypto and time interval
+ * Thread-safe implementation using volatile and synchronized blocks for topCryptos,
+ * and ConcurrentHashMap for historical data.
  */
 public class CryptoCache {
-    private List<Crypto> topCryptos;
+    private volatile List<Crypto> topCryptos;
     private final Map<String, Map<String, HistoricalData>> historicalDataCache;
     private final Object lock = new Object();
 
@@ -88,8 +90,19 @@ public class CryptoCache {
     public void clear() {
         synchronized (lock) {
             topCryptos = null;
-            historicalDataCache.clear();
         }
+        // ConcurrentHashMap handles its own synchronization
+        historicalDataCache.clear();
+    }
+
+    /**
+     * Get the number of cached historical data entries
+     * Useful for testing and monitoring
+     */
+    public int getHistoricalDataCount() {
+        return historicalDataCache.values().stream()
+                .mapToInt(Map::size)
+                .sum();
     }
 }
 

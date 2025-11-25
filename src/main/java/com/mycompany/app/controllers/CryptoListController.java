@@ -1,7 +1,7 @@
 package com.mycompany.app.controllers;
 
 import com.mycompany.app.models.Crypto;
-import com.mycompany.app.services.CryptoService;
+import com.mycompany.app.services.ICryptoService;
 import com.mycompany.app.views.CryptoListView;
 
 import java.util.function.Consumer;
@@ -11,11 +11,14 @@ import java.util.function.Consumer;
  * Responsible for loading top cryptos and forwarding selections
  */
 public class CryptoListController {
-    private final CryptoService cryptoService;
+    private final ICryptoService cryptoService;
     private CryptoListView view;
     private Consumer<Crypto> onCryptoSelected;
 
-    public CryptoListController(CryptoService cryptoService) {
+    public CryptoListController(ICryptoService cryptoService) {
+        if (cryptoService == null) {
+            throw new IllegalArgumentException("cryptoService cannot be null");
+        }
         this.cryptoService = cryptoService;
     }
 
