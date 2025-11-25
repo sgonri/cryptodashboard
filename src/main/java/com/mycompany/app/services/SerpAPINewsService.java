@@ -19,20 +19,41 @@ import java.util.concurrent.CompletableFuture;
  * NewsService implementation using SerpAPI for Google News searches
  * Fetches news for top 5 cryptocurrencies and general crypto news
  */
-public class SerpAPINewsService {
-    private static final HttpClient httpClient = HttpClient.newHttpClient();
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+public class SerpAPINewsService implements INewsService {
+    private final HttpClient httpClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String API_URL = "https://serpapi.com/search";
-    private static final String API_KEY = ApiConfig.getSerpApiKey();
+    private final String apiKey;
+
+    public SerpAPINewsService() {
+        this(HttpClient.newHttpClient(), ApiConfig.getSerpApiKey());
+    }
+
+    public SerpAPINewsService(HttpClient httpClient) {
+        this(httpClient, ApiConfig.getSerpApiKey());
+    }
+
+    public SerpAPINewsService(HttpClient httpClient, String apiKey) {
+        if (httpClient == null) {
+            throw new IllegalArgumentException("httpClient cannot be null");
+        }
+        this.httpClient = httpClient;
+        this.apiKey = apiKey != null ? apiKey : "";
+        if (this.apiKey.isEmpty()) {
+            System.err.println("Warning: SerpAPI key is not set. News fetching will fail.");
+        }
+    }
 
     // Search queries for the 5 top cryptocurrencies
     private static final String[] TOP_CRYPTOS = {"Bitcoin", "Ethereum", "Binance", "Solana", "Ripple"};
     private static final String GENERAL_CRYPTO_NEWS_QUERY = "crypto recent major news";
 
+    @Override
     public List<News> getNewsForCrypto(String cryptoId) {
         return searchNews(cryptoId + " recent news");
     }
 
+    @Override
     public List<News> getGeneralNews() {
         return searchNews(GENERAL_CRYPTO_NEWS_QUERY);
     }
@@ -41,6 +62,7 @@ public class SerpAPINewsService {
      * Get news for all top 5 cryptocurrencies and general crypto news
      * Total of 6 searches
      */
+    @Override
     public List<News> getAllNews() {
         List<News> allNews = new ArrayList<>();
 
@@ -69,7 +91,7 @@ public class SerpAPINewsService {
                     "%s?q=%s&tbm=nws&api_key=%s&num=5",
                     API_URL,
                     encodedQuery,
-                    API_KEY
+                    apiKey
             );
 
             // Create and send HTTP request
@@ -152,6 +174,7 @@ public class SerpAPINewsService {
     /**
      * Async version of searchNews for non-blocking operations
      */
+    @Override
     public CompletableFuture<List<News>> searchNewsAsync(String query) {
         return CompletableFuture.supplyAsync(() -> searchNews(query));
     }

@@ -2,7 +2,7 @@ package com.mycompany.app.controllers;
 
 import com.mycompany.app.models.Crypto;
 import com.mycompany.app.models.HistoricalData;
-import com.mycompany.app.services.CryptoService;
+import com.mycompany.app.services.ICryptoService;
 import com.mycompany.app.views.CryptoDetailView;
 
 /**
@@ -10,11 +10,14 @@ import com.mycompany.app.views.CryptoDetailView;
  * Manages historical data fetching and chart updates
  */
 public class CryptoDetailController {
-    private final CryptoService cryptoService;
+    private final ICryptoService cryptoService;
     private CryptoDetailView view;
     private Crypto currentCrypto;
 
-    public CryptoDetailController(CryptoService cryptoService) {
+    public CryptoDetailController(ICryptoService cryptoService) {
+        if (cryptoService == null) {
+            throw new IllegalArgumentException("cryptoService cannot be null");
+        }
         this.cryptoService = cryptoService;
     }
 
