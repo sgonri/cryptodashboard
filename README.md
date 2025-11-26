@@ -35,6 +35,19 @@ Run unit tests with:
 mvn test
 ```
 
+### Test Coverage
+
+The following components have unit tests:
+
+| Component | Test File | Description |
+|-----------|-----------|-------------|
+| `Crypto` model | `CryptoTest.java` | Tests price/change formatting, equals/hashCode |
+| `CryptoCache` service | `CryptoCacheTest.java` | Tests caching operations for crypto data |
+| `CryptoService` | `CryptoServiceTest.java` | Tests API response parsing, caching behavior, error handling |
+| `SerpAPINewsService` | `SerpAPINewsServiceTest.java` | Tests news API parsing, validation, error handling |
+
+**Note:** Service tests use mocked HTTP clients to simulate API responses without making real network calls.
+
 ## Known issues
 
 - For the news section, All sometimes shows coin specific news, but is fixed when toggled between Selected and back to All.
