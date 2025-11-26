@@ -45,7 +45,7 @@ public class MainController {
         // Only update news feed if "Selected" toggle is active
         // If "All" is selected, general news should remain unchanged
         if (!showAllNews) {
-            newsController.loadNewsForCrypto(crypto.getId());
+            newsController.loadNewsForCrypto(crypto.getName());
         }
     }
 
@@ -57,7 +57,7 @@ public class MainController {
         if (showAll) {
             newsController.loadGeneralNews();
         } else if (selectedCrypto != null) {
-            newsController.loadNewsForCrypto(selectedCrypto.getId());
+            newsController.loadNewsForCrypto(selectedCrypto.getName());
         }
     }
 
