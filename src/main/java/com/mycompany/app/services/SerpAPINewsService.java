@@ -49,8 +49,8 @@ public class SerpAPINewsService implements INewsService {
     private static final String GENERAL_CRYPTO_NEWS_QUERY = "crypto recent major news";
 
     @Override
-    public List<News> getNewsForCrypto(String cryptoId) {
-        return searchNews(cryptoId + " recent news");
+    public List<News> getNewsForCrypto(String cryptoName) {
+        return searchNews(cryptoName + " recent news");
     }
 
     @Override

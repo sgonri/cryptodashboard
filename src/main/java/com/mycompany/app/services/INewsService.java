@@ -13,9 +13,9 @@ public interface INewsService {
     
     /**
      * Get news for a specific cryptocurrency
-     * @param cryptoId The cryptocurrency identifier
+     * @param cryptoName The name of the cryptocurrency (e.g., "Bitcoin", "XRP")
      */
-    List<News> getNewsForCrypto(String cryptoId);
+    List<News> getNewsForCrypto(String cryptoName);
     
     /**
      * Get general cryptocurrency news

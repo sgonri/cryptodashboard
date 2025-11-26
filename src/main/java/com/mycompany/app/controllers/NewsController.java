@@ -52,18 +52,18 @@ public class NewsController {
     /**
      * Load news for a specific cryptocurrency asynchronously
      */
-    public void loadNewsForCrypto(String cryptoId) {
+    public void loadNewsForCrypto(String cryptoName) {
         if (view != null) {
             Platform.runLater(() -> view.showLoading());
         }
-        CompletableFuture.supplyAsync(() -> newsService.getNewsForCrypto(cryptoId))
+        CompletableFuture.supplyAsync(() -> newsService.getNewsForCrypto(cryptoName))
             .thenAccept(news -> {
                 if (view != null) {
                     Platform.runLater(() -> view.updateNews(news));
                 }
             })
             .exceptionally(ex -> {
-                System.err.println("Failed to load news for " + cryptoId + ": " + ex.getMessage());
+                System.err.println("Failed to load news for " + cryptoName + ": " + ex.getMessage());
                 return null;
             });
     }
@@ -78,7 +78,7 @@ public class NewsController {
     /**
      * Synchronous version for testing - loads news for crypto and returns it
      */
-    List<News> loadNewsForCryptoSync(String cryptoId) {
-        return newsService.getNewsForCrypto(cryptoId);
+    List<News> loadNewsForCryptoSync(String cryptoName) {
+        return newsService.getNewsForCrypto(cryptoName);
     }
 }
