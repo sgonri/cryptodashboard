@@ -22,33 +22,77 @@ import com.mycompany.app.models.ChartPoint;
 import com.mycompany.app.models.Crypto;
 import com.mycompany.app.models.HistoricalData;
 
+/**
+ * Service responsible for fetching cryptocurrency information from the CoinGecko API
+ * and caching results for use by the UI. This class encapsulates both synchronous
+ * and asynchronous operations:
+ *
+ * - Retrieving the top N cryptocurrencies by market cap (`getTopCryptos`).
+ * - Fetching historical time series data for a single currency (`getHistoricalDataForCrypto`).
+ * - Preloading historical data for the top cryptocurrencies in parallel
+ *   (`preloadAllData`) with batched retries for resiliency.
+ *
+ * Design notes and responsibilities:
+ * - Uses a `CryptoCache` instance to avoid repeated network calls.
+ * - Uses `HttpClient` for HTTP requests; the client can be injected for testing.
+ * - Read-only properties are loaded from `application.properties` when present.
+ * - Provides configurable retry delays (useful for tests) via `setRetryDelays`.
+ * - Not thread-safe for mutation of configuration, but read operations and
+ *   parallel preload use careful synchronization and concurrent collections.
+ */
 public class CryptoService implements ICryptoService {
+    // Default API endpoint; override via properties if necessary.
     private static final String DEFAULT_API_URL = "https://api.coingecko.com/api/v3";
+    // How many top coins to fetch for the main list.
     private static final int TOP_N = 5;
+    // Path inside resources for properties used by the service.
     private static final String PROPERTIES_PATH = "/application.properties";
+
+    // Http client used for all outgoing requests. Injected to support testing.
     private final HttpClient httpClient;
+    // Jackson mapper for JSON parsing.
     private final ObjectMapper mapper = new ObjectMapper();
+    // Loaded properties from resources (may be empty if not present).
     private final Properties props;
+    // Local cache to store top list and historical data to limit API calls.
     private final CryptoCache cache;
-    
-    // Configurable retry delays for testability (in milliseconds)
+
+    // Configurable retry delays (milliseconds). Default values are conservative to
+    // cope with rate-limiting; tests may override these via `setRetryDelays`.
     private int[] retryDelays = { 10000, 20000, 30000, 30000 };
+    // Delay used between batches when retrying failed requests during preload.
     private int delayBetweenCalls = 5000;
 
+    /**
+     * Default constructor used by the application. Creates a new HttpClient and
+     * a new in-memory `CryptoCache`, and attempts to load properties.
+     */
     public CryptoService() {
         this(HttpClient.newHttpClient(), new CryptoCache(), loadDefaultProperties());
     }
 
+    /**
+     * Convenience constructor allowing a pre-existing `CryptoCache` to be used.
+     * This is useful in tests to pre-populate the cache or verify cache behavior.
+     */
     public CryptoService(CryptoCache cache) {
         this(HttpClient.newHttpClient(), cache, loadDefaultProperties());
     }
 
+    /**
+     * Allows injection of an `HttpClient` and `CryptoCache`. Useful for tests
+     * to provide a mock HTTP client.
+     */
     public CryptoService(HttpClient httpClient, CryptoCache cache) {
         this(httpClient, cache, loadDefaultProperties());
     }
     
     /**
-     * Full constructor for maximum testability
+     * Full constructor for maximum testability and control.
+     *
+     * @param httpClient HTTP client to use for outbound requests (must not be null)
+     * @param cache      Cache instance used to store results (must not be null)
+     * @param props      Optional properties to configure endpoints and API keys.
      */
     public CryptoService(HttpClient httpClient, CryptoCache cache, Properties props) {
         if (httpClient == null) {
@@ -62,16 +106,29 @@ public class CryptoService implements ICryptoService {
         this.props = props != null ? props : loadDefaultProperties();
     }
     
+    /**
+     * Replace the retry delays used by the service. Intended for tests only.
+     *
+     * @param delays non-empty array of millisecond delays used between retries
+     */
     void setRetryDelays(int[] delays) {
         if (delays != null && delays.length > 0) {
             this.retryDelays = delays;
         }
     }
     
+    /**
+     * Configure the delay placed between batched retry calls (milliseconds).
+     * Minimum value is 0.
+     */
     void setDelayBetweenCalls(int delay) {
         this.delayBetweenCalls = Math.max(0, delay);
     }
     
+    /**
+     * Load properties from `/application.properties` on the classpath. If the
+     * file cannot be found or read, an empty Properties instance is returned.
+     */
     private static Properties loadDefaultProperties() {
         Properties p = new Properties();
         try (InputStream is = CryptoService.class.getResourceAsStream(PROPERTIES_PATH)) {
@@ -79,11 +136,22 @@ public class CryptoService implements ICryptoService {
                 p.load(is);
             }
         } catch (IOException e) {
+            // Don't fail hard if properties are absent; log for debugging.
             System.err.println("Failed to load properties: " + e.getMessage());
         }
         return p;
     }
 
+    /**
+     * Retrieve the top cryptocurrencies (by market cap). The method first checks
+     * the local cache and returns cached data if present. If not cached, it will
+     * fetch the list from CoinGecko and populate the cache.
+     *
+     * This method uses a simple synchronized block to ensure only one thread
+     * performs the initial network fetch and cache population.
+     *
+     * @return List of `Crypto` objects. May be empty if the API call fails.
+     */
     @Override
     public List<Crypto> getTopCryptos() {
         if (cache.hasTopCryptos()) {
@@ -91,17 +159,21 @@ public class CryptoService implements ICryptoService {
             return cache.getTopCryptos();
         }
 
+        // Double-checked locking: only one thread should perform the network fetch
         synchronized (this) {
             if (cache.hasTopCryptos()) {
                 System.out.println("Returning top cryptos from cache (synced)");
                 return cache.getTopCryptos();
             }
 
+            // Cache miss: perform a single network fetch and populate cache
+            // so subsequent callers can retrieve data without extra API calls.
             System.out.println("Fetching top cryptos from API...");
             List<Crypto> cryptos = fetchTopCryptosFromAPI();
             System.out.println("Fetched " + (cryptos == null ? "null" : cryptos.size()) + " cryptos from API");
 
             if (cryptos != null && !cryptos.isEmpty()) {
+                // Only store non-empty results
                 cache.setTopCryptos(cryptos);
             }
 
@@ -109,32 +181,47 @@ public class CryptoService implements ICryptoService {
         }
     }
 
+    /**
+     * Internal helper that performs the HTTP request to fetch the top coins and
+     * translates the JSON response into domain objects.
+     *
+     * The method implements a retry loop: on transient errors (network issues or
+     * rate-limiting responses) it will wait and retry using configured delays.
+     * Non-2xx final responses produce an empty list.
+     */
     private List<Crypto> fetchTopCryptosFromAPI() {
         String baseUrl = props.getProperty("coingecko.api.url", DEFAULT_API_URL);
         int maxRetries = retryDelays.length + 1;
 
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
+                // Build CoinGecko markets endpoint URL with query parameters
+                // (currency, ordering, page size and additional options).
                 String url = String.format(
-                        "%s/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=%d&page=1&sparkline=false&price_change_percentage=24h",
-                        baseUrl, TOP_N);
+                    "%s/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=%d&page=1&sparkline=false&price_change_percentage=24h",
+                    baseUrl, TOP_N);
 
                 HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                         .uri(URI.create(url))
                         .GET();
 
+                // Optional API key header — present only in some environments
                 String apiKey = props.getProperty("coingecko.api.key");
                 if (apiKey != null && !apiKey.isBlank()) {
                     reqBuilder.header("x-cg-demo-api-key", apiKey);
                 }
 
+                // Build the HTTP request and execute it using the injected HttpClient.
+                // This call is blocking; higher-level methods manage retry/backoff.
                 HttpRequest request = reqBuilder.build();
                 HttpResponse<String> response = httpClient.send(request,
-                        HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
+                // Successful response: parse and return results
                 if (response.statusCode() >= 200 && response.statusCode() < 300) {
                     return parseCoinsJson(response.body());
                 } else {
+                    // For non-success responses, either retry or return empty list
                     if (attempt < maxRetries - 1) {
                         int delay = retryDelays[attempt];
                         String statusMsg = response.statusCode() == 429 ? "Rate limit exceeded"
@@ -149,6 +236,7 @@ public class CryptoService implements ICryptoService {
                     }
                 }
             } catch (IOException | InterruptedException e) {
+                // On network errors, honor retry policy and handle interrupts
                 if (attempt < maxRetries - 1) {
                     int delay = retryDelays[attempt];
                     System.out.println("Network error for top cryptos (" + e.getMessage() + "). Waiting "
@@ -156,6 +244,7 @@ public class CryptoService implements ICryptoService {
                     try {
                         Thread.sleep(delay);
                     } catch (InterruptedException ie) {
+                        // Restore interrupt status and abort
                         Thread.currentThread().interrupt();
                         return new ArrayList<>();
                     }
@@ -169,6 +258,11 @@ public class CryptoService implements ICryptoService {
         return new ArrayList<>();
     }
 
+    /**
+     * Parse JSON array returned by the `/coins/markets` endpoint into a list of
+     * `Crypto` domain objects. Missing fields are handled gracefully by
+     * providing sensible defaults.
+     */
     private List<Crypto> parseCoinsJson(String json) throws IOException {
         List<Crypto> list = new ArrayList<>();
         JsonNode arr = mapper.readTree(json);
@@ -177,7 +271,9 @@ public class CryptoService implements ICryptoService {
             return new ArrayList<>();
         }
 
+        // Each array element represents a coin object; extract fields safely
         for (JsonNode node : arr) {
+            // Use safe accessors to avoid exceptions when fields are missing
             String id = node.path("id").asText("");
             String name = node.path("name").asText("");
             String symbol = node.path("symbol").asText("").toUpperCase();
@@ -187,6 +283,7 @@ public class CryptoService implements ICryptoService {
             double volumeNum = node.path("total_volume").asDouble(0.0);
             double circulating = node.path("circulating_supply").asDouble(0.0);
 
+            // Format numeric values for display in the UI
             String marketCap = formatMoneyShort(marketCapNum);
             String volume = formatMoneyShort(volumeNum);
             String circulatingStr = formatNumberShort(circulating);
@@ -205,8 +302,22 @@ public class CryptoService implements ICryptoService {
         return cache.hasHistoricalData(id, days);
     }
 
+    /**
+     * Get historical time series for a given cryptocurrency and time window.
+     *
+     * Behavior:
+     * - Validates inputs, uses default of 1 day if `days` is not provided.
+     * - Returns cached data if present.
+     * - Otherwise fetches from the API and caches the result if valid.
+     *
+     * @param id   Coin identifier used by CoinGecko (e.g. "bitcoin")
+     * @param days Number of days of history to load (string form, e.g. "1")
+     * @return `HistoricalData` instance; may contain null/empty points on failure.
+     */
     @Override
     public HistoricalData getHistoricalDataForCrypto(String id, String days) {
+        // Validate inputs and set sensible defaults. `days` defaults to "1"
+        // (a single-day timeseries) when not provided by the caller.
         if (id == null || id.isBlank())
             return new HistoricalData(null);
         if (days == null || days.isBlank())
@@ -229,12 +340,18 @@ public class CryptoService implements ICryptoService {
         return data;
     }
 
+    /**
+     * Helper for fetching market chart data with retry logic similar to the
+     * top coins fetcher. Returns a HistoricalData object, which may be empty on
+     * failure.
+     */
     private HistoricalData fetchHistoricalDataFromAPI(String id, String days) {
         String baseUrl = props.getProperty("coingecko.api.url", DEFAULT_API_URL);
         int maxRetries = retryDelays.length + 1;
 
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
+                // Build market_chart endpoint URL which returns time series data
                 String url = String.format("%s/coins/%s/market_chart?vs_currency=usd&days=%s", baseUrl, id, days);
 
                 HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
@@ -289,11 +406,18 @@ public class CryptoService implements ICryptoService {
         return new HistoricalData(null);
     }
 
+    // Callback invoked when single-interval data is loaded (used by the UI)
     private ICryptoService.DataLoadedCallback dataLoadedCallback;
+    // Thread-safe list of failed loads collected during preload/retries
     private final java.util.List<FailedDataLoad> failedLoads = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    // Map holding counts of successful interval loads (keyed by interval name)
     private final java.util.Map<String, Integer> intervalLoadCounts = new java.util.concurrent.ConcurrentHashMap<>();
+    // Number of cryptos being processed during preload; used to determine when an interval is complete
     private int totalCryptoCount = 0;
 
+    /**
+     * Records a failed data load to be inspected later.
+     */
     private static class FailedDataLoad {
         final String cryptoId;
         final String days;
@@ -311,6 +435,20 @@ public class CryptoService implements ICryptoService {
         this.dataLoadedCallback = callback;
     }
 
+    /**
+     * Preload historical data for the top cryptocurrencies in parallel. This
+     * method:
+     *
+     * 1. Retrieves the top cryptos (from cache or API).
+     * 2. Builds a list of fetch tasks covering several intervals (1,7,30,90,365).
+     * 3. Executes the tasks in parallel using `CompletableFuture`.
+     * 4. Caches successful results and collects failures for batched retries.
+     *
+     * The method reports progress to `dataLoadedCallback` and updates
+     * `intervalLoadCounts` to signal when a full interval has completed for
+     * all cryptos. The implementation is resilient and performs batch retries
+     * for failed calls.
+     */
     @Override
     public void preloadAllData() {
         System.out.println("Preloading cryptocurrency data (parallel mode)...");
@@ -319,14 +457,17 @@ public class CryptoService implements ICryptoService {
         totalCryptoCount = cryptos.size();
         System.out.println("Loaded " + cryptos.size() + " cryptocurrencies");
 
+        // Initialize counts per interval
         intervalLoadCounts.clear();
         String[] intervalNames = { "1D", "1W", "1M", "3M", "1Y" };
         for (String name : intervalNames) {
             intervalLoadCounts.put(name, 0);
         }
 
+        // Days values corresponding to the interval names above
         String[] intervals = { "1", "7", "30", "90", "365" };
 
+        // Build a full task list for every coin x interval combination
         List<FetchTask> allTasks = new ArrayList<>();
         for (Crypto crypto : cryptos) {
             for (int i = 0; i < intervals.length; i++) {
@@ -337,8 +478,12 @@ public class CryptoService implements ICryptoService {
         System.out.println("Starting " + allTasks.size() + " parallel API calls...");
         long startTime = System.currentTimeMillis();
 
+        // Launch all tasks asynchronously
         List<CompletableFuture<FetchResult>> futures = new ArrayList<>();
         for (FetchTask task : allTasks) {
+            // Submit an asynchronous supplier task to the default executor
+            // (typically the ForkJoinPool.commonPool()). Each task performs
+            // a single HTTP fetch without retry; failures are handled later.
             CompletableFuture<FetchResult> future = CompletableFuture.supplyAsync(() -> {
                 try {
                     HistoricalData data = fetchHistoricalDataFromAPINoRetry(task.cryptoId, task.days);
@@ -352,6 +497,7 @@ public class CryptoService implements ICryptoService {
             futures.add(future);
         }
 
+        // Wait for all parallel requests to complete
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         List<FetchTask> failedTasks = new ArrayList<>();
@@ -360,6 +506,7 @@ public class CryptoService implements ICryptoService {
             intervalSuccessCounts.put(name, new AtomicInteger(0));
         }
 
+        // Process results: cache successes, collect failures
         for (CompletableFuture<FetchResult> future : futures) {
             try {
                 FetchResult result = future.get();
@@ -368,6 +515,7 @@ public class CryptoService implements ICryptoService {
                     System.out.println("✓ " + result.task.intervalName + " for " + result.task.cryptoName);
                     intervalSuccessCounts.get(result.task.intervalName).incrementAndGet();
                     
+                    // Notify UI of single-day data loads on the JavaFX thread
                     if (result.task.days.equals("1") && dataLoadedCallback != null) {
                         final String cryptoId = result.task.cryptoId;
                         javafx.application.Platform.runLater(() -> {
@@ -386,6 +534,7 @@ public class CryptoService implements ICryptoService {
         long elapsed = System.currentTimeMillis() - startTime;
         System.out.println("Parallel phase complete in " + elapsed + "ms. Success: " + (allTasks.size() - failedTasks.size()) + "/" + allTasks.size());
 
+        // Update interval-level counts and notify when an entire interval completes
         for (String intervalName : intervalNames) {
             int count = intervalSuccessCounts.get(intervalName).get();
             intervalLoadCounts.put(intervalName, count);
@@ -397,14 +546,24 @@ public class CryptoService implements ICryptoService {
             }
         }
 
+        // If there were failures, attempt batched retries
         if (!failedTasks.isEmpty()) {
             System.out.println("Retrying " + failedTasks.size() + " failed calls in batches...");
-            retryInBatches(failedTasks, intervalSuccessCounts, 5, 2000);
+            // Use the configured delay between calls so tests can control timing
+            // (tests set this to 0 for faster execution). This avoids hardcoding
+            // the delay and prevents the `delayBetweenCalls` field from being
+            // effectively unused.
+            retryInBatches(failedTasks, intervalSuccessCounts, 5, this.delayBetweenCalls);
         }
 
         System.out.println("All data preloading complete!");
     }
 
+    /**
+     * Retry failed fetches in small batches with a limited number of attempts.
+     * The method updates success counts and records any permanently failed tasks
+     * in `failedLoads` for later inspection.
+     */
     private void retryInBatches(List<FetchTask> failedTasks, ConcurrentHashMap<String, AtomicInteger> intervalSuccessCounts, 
                                  int batchSize, int delayBetweenBatchesMs) {
         List<FetchTask> remaining = new ArrayList<>(failedTasks);
@@ -417,6 +576,8 @@ public class CryptoService implements ICryptoService {
             
             List<FetchTask> stillFailed = new ArrayList<>();
             
+            // Process remaining failed tasks in controlled-size batches to
+            // avoid creating too many concurrent requests.
             for (int i = 0; i < remaining.size(); i += batchSize) {
                 int end = Math.min(i + batchSize, remaining.size());
                 List<FetchTask> batch = remaining.subList(i, end);
@@ -466,7 +627,7 @@ public class CryptoService implements ICryptoService {
                             stillFailed.add(result.task);
                         }
                     } catch (Exception e) {
-                        // Keep task in failed list
+                        // Keep task in failed list if something goes wrong while processing
                     }
                 }
                 
@@ -502,6 +663,10 @@ public class CryptoService implements ICryptoService {
         }
     }
 
+    /**
+     * Fetch historical data without any retry logic. Used when the caller wants
+     * to control retries separately (for example inside batch retry loops).
+     */
     private HistoricalData fetchHistoricalDataFromAPINoRetry(String id, String days) {
         String baseUrl = props.getProperty("coingecko.api.url", DEFAULT_API_URL);
         
@@ -536,6 +701,10 @@ public class CryptoService implements ICryptoService {
         }
     }
 
+    /**
+     * Lightweight DTO describing a work item: which crypto, which days, and a
+     * human-friendly interval name used for logging and UI callbacks.
+     */
     private static class FetchTask {
         final String cryptoId;
         final String cryptoName;
@@ -550,6 +719,10 @@ public class CryptoService implements ICryptoService {
         }
     }
 
+    /**
+     * Result holder for asynchronous fetches. Contains the original task, the
+     * parsed data (if any) and a boolean success flag.
+     */
     private static class FetchResult {
         final FetchTask task;
         final HistoricalData data;
@@ -574,6 +747,14 @@ public class CryptoService implements ICryptoService {
         intervalLoadCounts.clear();
     }
 
+    /**
+     * Parse the `market_chart` JSON response into `HistoricalData`.
+     *
+     * The `prices` array contains [timestamp, price] entries and `total_volumes`
+     * contains [timestamp, volume]. The method pairs entries by index; if the
+     * arrays are misaligned or a particular entry is malformed, the method
+     * skips the problematic entry and continues.
+     */
     private HistoricalData parseMarketChartJson(String json) throws IOException {
         JsonNode root = mapper.readTree(json);
         JsonNode prices = root.path("prices");
@@ -601,16 +782,21 @@ public class CryptoService implements ICryptoService {
             }
 
             try {
+                // Convert epoch milliseconds to Instant and create ChartPoint
                 ChartPoint cp = new ChartPoint(Instant.ofEpochMilli(ts), price, vol);
                 points.add(cp);
             } catch (Exception ex) {
-                // skip malformed timestamps
+                // skip malformed timestamps to keep the rest of the data usable
             }
         }
 
         return new HistoricalData(points);
     }
 
+    /**
+     * Format a currency value to a compact string (e.g. 1_500 -> "$1.5K").
+     * Handles large values up to trillions and avoids negative/NaN outputs.
+     */
     private static String formatMoneyShort(double value) {
         if (Double.isNaN(value) || Double.isInfinite(value) || value <= 0)
             return "$0";
@@ -629,6 +815,10 @@ public class CryptoService implements ICryptoService {
         }
     }
 
+    /**
+     * Format a general large number to a compact representation (no currency
+     * symbol). Similar behavior to `formatMoneyShort` but without the dollar.
+     */
     private static String formatNumberShort(double value) {
         if (Double.isNaN(value) || Double.isInfinite(value) || value <= 0)
             return "0";
