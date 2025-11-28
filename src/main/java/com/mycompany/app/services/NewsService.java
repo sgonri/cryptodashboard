@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mycompany.app.config.ApiConfig;
 import com.mycompany.app.models.News;
+import com.mycompany.app.models.Crypto;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -24,6 +25,8 @@ public class NewsService implements INewsService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String API_URL = "https://serpapi.com/search";
     private final String apiKey;
+    private static final String GENERAL_CRYPTO_NEWS_QUERY = "crypto recent major news";
+    private ICryptoService cryptoService = new CryptoService();
 
     public NewsService() {
         this(HttpClient.newHttpClient(), ApiConfig.getSerpApiKey());
@@ -44,10 +47,6 @@ public class NewsService implements INewsService {
         }
     }
 
-    // Search queries for the 5 top cryptocurrencies
-    private static final String[] TOP_CRYPTOS = {"Bitcoin", "Ethereum", "Binance", "Solana", "Ripple"};
-    private static final String GENERAL_CRYPTO_NEWS_QUERY = "crypto recent major news";
-
     @Override
     public List<News> getNewsForCrypto(String cryptoName) {
         return searchNews(cryptoName + " recent news");
@@ -67,7 +66,7 @@ public class NewsService implements INewsService {
         List<News> allNews = new ArrayList<>();
 
         // Fetch news for each of the top 5 cryptos
-        for (String crypto : TOP_CRYPTOS) {
+        for (String crypto : getTopCryptos()) {
             allNews.addAll(searchNews(crypto + " recent news"));
         }
 
@@ -75,6 +74,15 @@ public class NewsService implements INewsService {
         allNews.addAll(searchNews(GENERAL_CRYPTO_NEWS_QUERY));
 
         return allNews;
+    }
+
+    private String[] getTopCryptos() {
+        List<Crypto> cryptos = cryptoService.getTopCryptos();
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < Math.min(5, cryptos.size()); i++) {
+            names.add(cryptos.get(i).getName());
+        }
+        return names.toArray(new String[0]);
     }
 
     /**
