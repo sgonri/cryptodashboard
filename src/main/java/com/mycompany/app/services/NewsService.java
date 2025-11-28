@@ -19,21 +19,21 @@ import java.util.concurrent.CompletableFuture;
  * NewsService implementation using SerpAPI for Google News searches
  * Fetches news for top 5 cryptocurrencies and general crypto news
  */
-public class SerpAPINewsService implements INewsService {
+public class NewsService implements INewsService {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String API_URL = "https://serpapi.com/search";
     private final String apiKey;
 
-    public SerpAPINewsService() {
+    public NewsService() {
         this(HttpClient.newHttpClient(), ApiConfig.getSerpApiKey());
     }
 
-    public SerpAPINewsService(HttpClient httpClient) {
+    public NewsService(HttpClient httpClient) {
         this(httpClient, ApiConfig.getSerpApiKey());
     }
 
-    public SerpAPINewsService(HttpClient httpClient, String apiKey) {
+    public NewsService(HttpClient httpClient, String apiKey) {
         if (httpClient == null) {
             throw new IllegalArgumentException("httpClient cannot be null");
         }

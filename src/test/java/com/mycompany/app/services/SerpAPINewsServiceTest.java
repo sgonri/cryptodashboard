@@ -22,13 +22,13 @@ import com.mycompany.app.models.News;
 public class SerpAPINewsServiceTest {
 
     private HttpClient mockHttpClient;
-    private SerpAPINewsService service;
+    private NewsService service;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         mockHttpClient = Mockito.mock(HttpClient.class);
-        service = new SerpAPINewsService(mockHttpClient, "test-api-key");
+        service = new NewsService(mockHttpClient, "test-api-key");
     }
 
     @Test
@@ -246,7 +246,7 @@ public class SerpAPINewsServiceTest {
     @Test
     public void testConstructorWithNullHttpClient() {
         assertThrows(IllegalArgumentException.class, () -> {
-            new SerpAPINewsService(null, "api-key");
+            new NewsService(null, "api-key");
         });
     }
 }

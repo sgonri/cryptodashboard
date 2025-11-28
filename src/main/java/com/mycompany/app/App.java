@@ -13,7 +13,7 @@ import com.mycompany.app.controllers.NewsController;
 import com.mycompany.app.controllers.CryptoListController;
 import com.mycompany.app.services.CryptoService;
 import com.mycompany.app.services.PricePollingService;
-import com.mycompany.app.services.SerpAPINewsService;
+import com.mycompany.app.services.NewsService;
 import com.mycompany.app.models.Crypto;
 
 import java.util.List;
@@ -27,7 +27,7 @@ public class App extends Application {
     public void start(Stage primaryStage) {
         // Initialize services
         CryptoService cryptoService = new CryptoService();
-        SerpAPINewsService newsService = new SerpAPINewsService();
+        NewsService newsService = new NewsService();
         PricePollingService pricePollingService = new PricePollingService();
         
         // Initialize controllers
